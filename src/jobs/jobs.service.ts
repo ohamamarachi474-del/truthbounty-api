@@ -8,6 +8,8 @@ import { Claim } from '../claims/entities/claim.entity';
 import { User } from '../entities/user.entity';
 import { AggregationService } from '../aggregation/aggregation.service';
 import { ClaimsCache } from '../cache/claims.cache';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 /**
  * JobsService
@@ -29,18 +31,49 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly claimsCache: ClaimsCache,
+    @InjectQueue('jobs-queue') private readonly jobsQueue: Queue,
     private readonly aggregationService?: AggregationService,
   ) { }
 
   async onModuleInit() {
-    this.logger.log('JobsService initialized (bullmq to be integrated)');
+    this.logger.log('JobsService initialized. Registering repeatable BullMQ jobs...');
+    try {
+      const repeatableJobs = await this.jobsQueue.getRepeatableJobs();
+      for (const rJob of repeatableJobs) {
+        await this.jobsQueue.removeRepeatableByKey(rJob.key);
+      }
+
+      await this.jobsQueue.add(
+        'compute-scores',
+        {},
+        {
+          repeat: {
+            pattern: '0 * * * *', // hourly
+          },
+          jobId: 'compute-scores-job',
+        },
+      );
+      await this.jobsQueue.add(
+        'compute-reputation',
+        {},
+        {
+          repeat: {
+            pattern: '0 0 * * *', // daily
+          },
+          jobId: 'compute-reputation-job',
+        },
+      );
+      this.logger.log('Repeatable BullMQ jobs registered successfully');
+    } catch (err) {
+      this.logger.error(`Failed to register repeatable BullMQ jobs: ${err.message}`);
+    }
   }
 
   async onModuleDestroy() {
     this.logger.log('JobsService shutdown');
   }
 
-  private async computeScores() {
+  async computeScores() {
     this.logger.debug('computeScores: starting');
 
     // Process claims in small batches
@@ -105,7 +138,7 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
     this.logger.debug('computeScores: finished');
   }
 
-  private async computeReputation() {
+  async computeReputation() {
     this.logger.debug('computeReputation: starting');
 
     // Process users in batches

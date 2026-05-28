@@ -8,7 +8,7 @@ import { AuditActionType, AuditEntityType } from '../entities/audit-log.entity';
 
 describe('AuditTrailService - IP Security', () => {
   let service: AuditTrailService;
-  let repository: jest.Mocked<Repository<AuditLog>>;
+  let repository: any;
   let mockRequest: any;
 
   beforeEach(async () => {

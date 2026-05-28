@@ -1,7 +1,7 @@
 import { ClaimResolutionService } from "./claim-resolution.service";
 
 describe('Confidence Scoring', () => {
-  const service = new ClaimResolutionService(null as any);
+  const service = new ClaimResolutionService(null as any, null as any);
 
   it('returns high confidence for strong consensus', () => {
     const score = service.computeConfidenceScore({
